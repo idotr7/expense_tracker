@@ -1,10 +1,13 @@
 from sqlmodel import SQLModel, create_engine, Session
 import os
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path='.env')
 
 USER = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
 HOST = os.getenv("HOST")
-DATABASE = os.getenv("DATABASE")
+DATABASE = os.getenv("DB")
 
 engine = create_engine(f"postgresql+psycopg2://{USER}:{PASSWORD}@{HOST}/{DATABASE}")
     

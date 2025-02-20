@@ -8,6 +8,9 @@ import os
 
 from models import TokenData, Users
 from db import get_session
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path='.env')
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"

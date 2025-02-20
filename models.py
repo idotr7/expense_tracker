@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field
+from sqlmodel import SQLModel, Field, Relationship
 from pydantic import EmailStr, BaseModel
 from typing import Optional
 from enum import Enum
@@ -12,6 +12,7 @@ class Users(UserBase, table=True):
     id:int | None = Field(default=None, primary_key=True)
     last_updated:datetime = Field(default= datetime.now(),index=True) 
     hashed_password:str = Field()
+    expenses: list["Expense"] = Relationship(back_populates="user")
     
 class UserCreate(UserBase):
     password:str
@@ -43,11 +44,14 @@ class ExpenseBase(SQLModel):
     amount: float  
     description: str
     category: Category
+    user_id: int | None = Field(default=None, foreign_key="users.id")
+
 
 class Expense(ExpenseBase, table = True):
     id: int | None = Field(default=None, primary_key=True)
     date: datetime = Field(default_factory=datetime.now)
-    owner_id: int | None = Field(default=None)
+    user: Users | None = Relationship(back_populates="expenses")
+    
     
 class ExpenseCreate(ExpenseBase):
     pass
@@ -55,7 +59,6 @@ class ExpenseCreate(ExpenseBase):
 class ExpensePublic(ExpenseBase):
     id: int
     date: datetime
-    owner_id: int
     
 class ExpenseUpdate(SQLModel):
     amount: float | None = None
@@ -68,6 +71,12 @@ class TimeFilter(str, Enum):
     PAST_MONTH = "past_month"
     LAST_3_MONTHS = "last_3_months"
     CUSTOM = "custom"
+    
+class UsersPublicWithExpense(UserPublic):
+    expenses: list[ExpensePublic] | None = None    
+
+class ExpensePublicWithUsers(ExpensePublic):
+    user: UserPublic | None = None
     
 class access_token(BaseModel):
     access_token: str

@@ -1,4 +1,15 @@
-from models import Users, UserCreate, UserPublic, UserUpdate, Expense, ExpenseCreate, ExpensePublic, ExpenseUpdate, access_token, TimeFilter
+from models import (Users, 
+                    UserCreate, 
+                    UserPublic, 
+                    UserUpdate, 
+                    Expense, 
+                    ExpenseCreate, 
+                    ExpensePublic, 
+                    ExpenseUpdate, 
+                    access_token, 
+                    TimeFilter,
+                    UsersPublicWithExpense,
+                    ExpensePublicWithUsers)
 from db import create_db_and_tables, get_session
 from auth import verify, hash_password, create_access_token, get_current_user
 
@@ -50,7 +61,7 @@ def read_users(*, session: Session = Depends(get_session)):
     users = session.exec(select(Users)).all()
     return users
         
-@app.get('/users/{user_id}', response_model=UserPublic)
+@app.get('/users/{user_id}', response_model=UsersPublicWithExpense)
 def read_user(*, session: Session = Depends(get_session), user_id: int):
     user = session.get(Users,user_id)
     if not user:
@@ -80,21 +91,30 @@ def create_expense(*,
                    current_user: Users = Depends(get_current_user), 
                    expense: ExpenseCreate
                    ):
-    db_expense = Expense.model_validate(expense, update= {"owner_id":current_user.id})
+    db_expense = Expense.model_validate(expense, update= {"user_id":current_user.id})
     session.add(db_expense)
     session.commit()
     session.refresh(db_expense)
     return db_expense
         
-@app.get('/expenses/{expense_id}', response_model=ExpensePublic)
+@app.get('/expenses/{expense_id}', response_model=ExpensePublicWithUsers)
 def read_expense_id(*, 
                     session: Session = Depends(get_session),
                     current_user: Users = Depends(get_current_user), 
                     expense_id: int):
-    expense = session.exec(select(Expense).where(Expense.id == expense_id, Expense.owner_id == current_user.id)).first()
+    print(f"Fetching expense {expense_id} for user {current_user.id}")  # Debug log
     
+    # First verify the expense exists at all
+    expense = session.get(Expense, expense_id)
     if not expense:
+        print(f"No expense found with ID {expense_id}")  # Debug log
         raise HTTPException(status_code=404, detail="Expense not found")
+        
+    # Then check if it belongs to the current user
+    if expense.user_id != current_user.id:
+        print(f"Expense {expense_id} belongs to user {expense.user_id}, not {current_user.id}")  # Debug log
+        raise HTTPException(status_code=404, detail="Expense not found")
+        
     return expense
 
 @app.get('/expenses/', response_model=list[ExpensePublic])
@@ -103,7 +123,7 @@ def read_expense(*,
                 current_user: Users = Depends(get_current_user), 
                 time_filter: TimeFilter = Query(default=TimeFilter.ALL),
                 custom:Optional[int] = Query(default=None,ge=1)):
-    query = select(Expense).where(Expense.owner_id == current_user.id)
+    query = select(Expense).where(Expense.user_id == current_user.id)
 
     now = datetime.now()
     if time_filter == TimeFilter.PAST_WEEK:
@@ -128,7 +148,7 @@ def update_expense(*,
                    current_user: Users = Depends(get_current_user), 
                    expense_id:int, 
                    expense: ExpenseUpdate):
-    db_expense = session.exec(select(Expense).where(Expense.id == expense_id, Expense.owner_id == current_user.id)).first()
+    db_expense = session.exec(select(Expense).where(Expense.id == expense_id, Expense.user_id == current_user.id)).first()
     if not db_expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     expense_data = expense.model_dump(exclude_unset=True)
@@ -143,7 +163,7 @@ def delete_expense(*,
                    session: Session = Depends(get_session), 
                    current_user: Users = Depends(get_current_user), 
                    expense_id:int):
-    expense = session.exec(select(Expense).where(Expense.id == expense_id, Expense.owner_id == current_user.id)).first()
+    expense = session.exec(select(Expense).where(Expense.id == expense_id, Expense.user_id == current_user.id)).first()
     if not expense:
         raise HTTPException(status_code=404, detail="Expense not found")
     session.delete(expense)
